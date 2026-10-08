@@ -14,18 +14,8 @@ import uz.qalqon.security.security.RiskEngine
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
-import java.util.zip.ZipFile
 
 class ApkScanner(private val context: Context) {
-    companion object {
-        const val MAX_APK_BYTES = 512L * 1024 * 1024
-        const val MAX_ZIP_ENTRIES = 20_000
-        const val MAX_TOTAL_UNCOMPRESSED_BYTES = 2L * 1024 * 1024 * 1024
-        const val MAX_COMPRESSION_RATIO = 250L
-    }
-
-    private data class ArchiveCheck(val valid: Boolean, val message: String? = null)
-
     fun scan(uri: Uri): ApkScanResult {
         val resolver = context.contentResolver
         var displayName = "selected.apk"
@@ -45,7 +35,7 @@ class ApkScanner(private val context: Context) {
                         val n = input.read(buffer)
                         if (n <= 0) break
                         size += n
-                        require(size <= MAX_APK_BYTES) { "APK hajmi 512 MB limitdan katta" }
+                        require(size <= ApkArchiveGuard.MAX_APK_BYTES) { "APK hajmi 512 MB limitdan katta" }
                         digest.update(buffer, 0, n)
                         out.write(buffer, 0, n)
                     }
@@ -53,7 +43,7 @@ class ApkScanner(private val context: Context) {
             }
 
             val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
-            val archive = validateArchive(temp)
+            val archive = ApkArchiveGuard.validate(temp)
             if (!archive.valid) {
                 return incompleteResult(displayName, size, sha256, archive.message ?: "APK arxivi yaroqsiz")
             }
@@ -129,35 +119,4 @@ class ApkScanner(private val context: Context) {
         )
     }
 
-    private fun validateArchive(file: File): ArchiveCheck {
-        return runCatching {
-            ZipFile(file).use { zip ->
-                var entries = 0
-                var totalUncompressed = 0L
-                var hasManifest = false
-                val enumeration = zip.entries()
-                while (enumeration.hasMoreElements()) {
-                    val entry = enumeration.nextElement()
-                    entries++
-                    if (entries > MAX_ZIP_ENTRIES) return ArchiveCheck(false, "APK ichida haddan tashqari ko‘p ZIP yozuvlari bor")
-                    if (entry.name == "AndroidManifest.xml") hasManifest = true
-                    if (entry.isDirectory) continue
-
-                    val unpacked = entry.size
-                    if (unpacked > 0) {
-                        if (unpacked > MAX_TOTAL_UNCOMPRESSED_BYTES - totalUncompressed) {
-                            return ArchiveCheck(false, "APK ochilganda ruxsat etilgan hajmdan oshadi")
-                        }
-                        totalUncompressed += unpacked
-                    }
-
-                    val compressed = entry.compressedSize
-                    if (unpacked > 16L * 1024 * 1024 && compressed > 0 && unpacked / compressed > MAX_COMPRESSION_RATIO) {
-                        return ArchiveCheck(false, "APK ichida xavfli darajada yuqori siqish nisbati aniqlandi")
-                    }
-                }
-                if (!hasManifest) ArchiveCheck(false, "AndroidManifest.xml topilmadi") else ArchiveCheck(true)
-            }
-        }.getOrElse { ArchiveCheck(false, "APK ZIP arxivini tekshirib bo‘lmadi: " + (it.message ?: "noma’lum xato")) }
-    }
 }
