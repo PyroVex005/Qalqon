@@ -101,5 +101,11 @@ class MainViewModel(app: Application): AndroidViewModel(app) {
     fun completeOnboarding() { viewModelScope.launch { settingsStore.completeOnboarding() } }
     fun setTheme(mode: ThemeMode) { viewModelScope.launch { settingsStore.setTheme(mode) } }
     fun loadHistory() { viewModelScope.launch(Dispatchers.IO) { _history.value = historyDb.list() } }
+    fun clearHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            historyDb.clear()
+            _history.value = emptyList()
+        }
+    }
     fun cloudConfigured(): Boolean = reputation.configured
 }
