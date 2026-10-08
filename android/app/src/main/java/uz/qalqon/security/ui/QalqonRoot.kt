@@ -161,7 +161,80 @@ private enum class Tab(val label: Int, val icon: ImageVector) {
 
 @Composable private fun RiskBadge(score:Int,category:RiskCategory){val c=when(category){RiskCategory.SAFE,RiskCategory.LOW->Color(0xFF25B46B);RiskCategory.ATTENTION->Color(0xFFFFB020);else->Color(0xFFE5484D)};Surface(color=c.copy(alpha=.15f),shape=RoundedCornerShape(30.dp)){Text("$score%",Modifier.padding(horizontal=10.dp,vertical=6.dp),color=c,fontWeight=FontWeight.Bold)}}
 
-@Composable private fun AppDetail(app:AppSecurityInfo,onBack:()->Unit){LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{TextButton(onClick=onBack){Icon(Icons.Default.ArrowBack,null);Text(stringResource(R.string.back))}};item{Row(verticalAlignment=Alignment.CenterVertically){rememberAppIcon(app.packageName)?.let{Image(it,null,Modifier.size(72.dp).clip(RoundedCornerShape(18.dp)));Spacer(Modifier.width(14.dp))};Column{Text(app.label,fontSize=25.sp,fontWeight=FontWeight.Bold);Text(app.packageName);RiskBadge(app.riskScore,app.category)}}};item{GlassCard{Column{Text(stringResource(R.string.details),fontWeight=FontWeight.Bold);Text("${stringResource(R.string.version)}: ${app.versionName}");Text("${stringResource(R.string.target_sdk)}: ${app.targetSdk}");Text("${stringResource(R.string.source)}: ${app.installerPackage ?: stringResource(R.string.unknown)}");Text("${stringResource(R.string.certificate)}: ${app.certificateSha256 ?: stringResource(R.string.unknown)}")}}};item{GlassCard{Column{Text(stringResource(R.string.permissions),fontWeight=FontWeight.Bold);Text("${app.grantedPermissions.size} / ${app.requestedPermissions.size}");app.reasons.forEach{Text("• ${it.title}: ${it.detail}",Modifier.padding(top=5.dp))};if(app.reasons.isEmpty())Text(stringResource(R.string.no_known_risk));Spacer(Modifier.height(8.dp));Text(stringResource(R.string.not_proof_malware),style=MaterialTheme.typography.bodySmall)}}}}
+@Composable
+private fun AppDetail(app: AppSecurityInfo, onBack: () -> Unit) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            TextButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, null)
+                Text(stringResource(R.string.back))
+            }
+        }
+
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                rememberAppIcon(app.packageName)?.let { icon ->
+                    Image(
+                        icon,
+                        null,
+                        Modifier.size(72.dp).clip(RoundedCornerShape(18.dp))
+                    )
+                    Spacer(Modifier.width(14.dp))
+                }
+                Column {
+                    Text(app.label, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Text(app.packageName)
+                    RiskBadge(app.riskScore, app.category)
+                }
+            }
+        }
+
+        item {
+            GlassCard {
+                Column {
+                    Text(stringResource(R.string.details), fontWeight = FontWeight.Bold)
+                    Text("${stringResource(R.string.version)}: ${app.versionName}")
+                    Text("${stringResource(R.string.target_sdk)}: ${app.targetSdk}")
+                    Text(
+                        "${stringResource(R.string.source)}: " +
+                            (app.installerPackage ?: stringResource(R.string.unknown))
+                    )
+                    Text(
+                        "${stringResource(R.string.certificate)}: " +
+                            (app.certificateSha256 ?: stringResource(R.string.unknown))
+                    )
+                }
+            }
+        }
+
+        item {
+            GlassCard {
+                Column {
+                    Text(stringResource(R.string.permissions), fontWeight = FontWeight.Bold)
+                    Text("${app.grantedPermissions.size} / ${app.requestedPermissions.size}")
+                    app.reasons.forEach { reason ->
+                        Text(
+                            "• ${reason.title}: ${reason.detail}",
+                            Modifier.padding(top = 5.dp)
+                        )
+                    }
+                    if (app.reasons.isEmpty()) {
+                        Text(stringResource(R.string.no_known_risk))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.not_proof_malware),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun ScanScreen(vm: MainViewModel) {
@@ -302,4 +375,86 @@ private fun ScanScreen(vm: MainViewModel) {
 
 @Composable private fun Reports(vm:MainViewModel){val history by vm.history.collectAsStateWithLifecycle();LaunchedEffect(Unit){vm.loadHistory()};LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{Text(stringResource(R.string.reports),fontSize=28.sp,fontWeight=FontWeight.Bold)};if(history.isEmpty())item{Text(stringResource(R.string.history_empty))}else items(history,key={it.id}){h->GlassCard{Column{Text(DateFormat.getDateTimeInstance().format(Date(h.timestamp)),fontWeight=FontWeight.Bold);Text("${stringResource(R.string.overall_security)}: ${h.overallScore}%");Text("${stringResource(R.string.installed_apps)}: ${h.totalApps}");Text("${stringResource(R.string.suspicious)}: ${h.suspiciousApps}   ${stringResource(R.string.high_risk)}: ${h.highRiskApps}")}}}}}
 
-@Composable private fun SettingsScreen(vm:MainViewModel){val settings by vm.settings.collectAsStateWithLifecycle();LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{Text(stringResource(R.string.settings),fontSize=28.sp,fontWeight=FontWeight.Bold)};item{GlassCard{Column{Text(stringResource(R.string.theme),fontWeight=FontWeight.Bold);ThemeMode.entries.forEach{m->Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){RadioButton(selected=settings.theme==m,onClick={vm.setTheme(m)});Text(when(m){ThemeMode.SYSTEM->stringResource(R.string.theme_system);ThemeMode.LIGHT->stringResource(R.string.theme_light);ThemeMode.DARK->stringResource(R.string.theme_dark)})}}}}};item{GlassCard{Column{Text(stringResource(R.string.background_protection),fontWeight=FontWeight.Bold);Text(stringResource(R.string.daily_refresh));Text(if(vm.cloudConfigured())"Cloud reputation: HTTPS configured" else stringResource(R.string.cloud_not_configured),style=MaterialTheme.typography.bodySmall)}}};item{GlassCard{Column{Row(verticalAlignment=Alignment.CenterVertically){Image(painterResource(R.drawable.qalqon_master),null,Modifier.size(58.dp).clip(RoundedCornerShape(14.dp)));Spacer(Modifier.width(12.dp));Text("QALQON",fontSize=23.sp,fontWeight=FontWeight.Bold)};Spacer(Modifier.height(10.dp));Text(stringResource(R.string.about_text))}}}}
+@Composable
+private fun SettingsScreen(vm: MainViewModel) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                stringResource(R.string.settings),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        item {
+            GlassCard {
+                Column {
+                    Text(stringResource(R.string.theme), fontWeight = FontWeight.Bold)
+                    ThemeMode.entries.forEach { mode ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = settings.theme == mode,
+                                onClick = { vm.setTheme(mode) }
+                            )
+                            Text(
+                                when (mode) {
+                                    ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                                    ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                                    ThemeMode.DARK -> stringResource(R.string.theme_dark)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            GlassCard {
+                Column {
+                    Text(
+                        stringResource(R.string.background_protection),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(stringResource(R.string.daily_refresh))
+                    Text(
+                        if (vm.cloudConfigured()) {
+                            "Cloud reputation: HTTPS configured"
+                        } else {
+                            stringResource(R.string.cloud_not_configured)
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+
+        item {
+            GlassCard {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painterResource(R.drawable.qalqon_master),
+                            null,
+                            Modifier.size(58.dp).clip(RoundedCornerShape(14.dp))
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text("QALQON", fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(stringResource(R.string.about_text))
+                }
+            }
+        }
+    }
+}
+
