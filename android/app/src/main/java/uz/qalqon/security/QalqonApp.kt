@@ -16,24 +16,29 @@ class QalqonApp: Application() {
         super.onCreate()
         NotificationHelper.createChannel(this)
 
-        val constraints = Constraints.Builder()
+        val batteryAware = Constraints.Builder()
             .setRequiresBatteryNotLow(true)
-            .setRequiresStorageNotLow(true)
             .build()
 
         val initial = OneTimeWorkRequestBuilder<ProtectionWorker>()
-            .setInitialDelay(10, TimeUnit.SECONDS)
-            .setConstraints(constraints)
+            .setConstraints(batteryAware)
+            .setInitialDelay(20, TimeUnit.SECONDS)
             .build()
-        WorkManager.getInstance(this).enqueueUniqueWork("qalqon_initial_security", ExistingWorkPolicy.KEEP, initial)
 
-        val periodic = PeriodicWorkRequestBuilder<ProtectionWorker>(12, TimeUnit.HOURS)
-            .setConstraints(constraints)
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            "qalqon_initial_security",
+            ExistingWorkPolicy.KEEP,
+            initial
+        )
+
+        val daily = PeriodicWorkRequestBuilder<ProtectionWorker>(24, TimeUnit.HOURS)
+            .setConstraints(batteryAware)
             .build()
+
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "qalqon_periodic_security",
+            "qalqon_daily_security",
             ExistingPeriodicWorkPolicy.UPDATE,
-            periodic
+            daily
         )
     }
 }

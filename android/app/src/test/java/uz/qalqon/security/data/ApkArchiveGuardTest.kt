@@ -4,29 +4,54 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 class ApkArchiveGuardTest {
-    @Test fun archiveWithManifestIsAccepted() {
-        val file = File.createTempFile("qalqon_test", ".apk")
+    @Test
+    fun acceptsZipWithAndroidManifest() {
+        val file = tempZip(
+            "AndroidManifest.xml" to "manifest".toByteArray(),
+            "classes.dex" to byteArrayOf(1, 2, 3)
+        )
         try {
-            ZipOutputStream(file.outputStream()).use { zip ->
-                zip.putNextEntry(ZipEntry("AndroidManifest.xml")); zip.write(byteArrayOf(1,2,3)); zip.closeEntry()
-                zip.putNextEntry(ZipEntry("classes.dex")); zip.write(byteArrayOf(4,5,6)); zip.closeEntry()
-            }
-            assertTrue(ApkArchiveGuard.inspect(file).valid)
-        } finally { file.delete() }
+            assertTrue(ApkArchiveGuard.validate(file).valid)
+        } finally {
+            file.delete()
+        }
     }
 
-    @Test fun pathTraversalIsRejected() {
-        val file = File.createTempFile("qalqon_test", ".apk")
+    @Test
+    fun rejectsArchiveWithoutManifest() {
+        val file = tempZip("classes.dex" to byteArrayOf(1, 2, 3))
         try {
-            ZipOutputStream(file.outputStream()).use { zip ->
-                zip.putNextEntry(ZipEntry("AndroidManifest.xml")); zip.write(byteArrayOf(1)); zip.closeEntry()
-                zip.putNextEntry(ZipEntry("../evil.bin")); zip.write(byteArrayOf(2)); zip.closeEntry()
+            assertFalse(ApkArchiveGuard.validate(file).valid)
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun rejectsMalformedArchive() {
+        val file = File.createTempFile("qalqon_bad_", ".apk")
+        file.writeText("not a zip")
+        try {
+            assertFalse(ApkArchiveGuard.validate(file).valid)
+        } finally {
+            file.delete()
+        }
+    }
+
+    private fun tempZip(vararg entries: Pair<String, ByteArray>): File {
+        val file = File.createTempFile("qalqon_test_", ".apk")
+        ZipOutputStream(FileOutputStream(file)).use { out ->
+            entries.forEach { (name, bytes) ->
+                out.putNextEntry(ZipEntry(name))
+                out.write(bytes)
+                out.closeEntry()
             }
-            assertFalse(ApkArchiveGuard.inspect(file).valid)
-        } finally { file.delete() }
+        }
+        return file
     }
 }

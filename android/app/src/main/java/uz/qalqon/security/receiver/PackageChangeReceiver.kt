@@ -8,21 +8,14 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import uz.qalqon.security.worker.ProtectionWorker
-import java.util.concurrent.TimeUnit
 
 class PackageChangeReceiver: BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val action = intent.action ?: return
-        if (action != Intent.ACTION_PACKAGE_ADDED && action != Intent.ACTION_PACKAGE_REPLACED) return
+        if (intent.action == Intent.ACTION_PACKAGE_REMOVED && intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
         val packageName = intent.data?.schemeSpecificPart ?: return
-        if (packageName == context.packageName) return
-
-        val work = OneTimeWorkRequestBuilder<ProtectionWorker>()
-            .setInitialDelay(3, TimeUnit.SECONDS)
-            .setInputData(Data.Builder().putString("package", packageName).build())
-            .build()
+        val work = OneTimeWorkRequestBuilder<ProtectionWorker>().setInputData(Data.Builder().putString("package", packageName).build()).build()
         WorkManager.getInstance(context).enqueueUniqueWork(
-            "qalqon_package_${packageName.hashCode()}",
+            "qalqon_package_" + packageName,
             ExistingWorkPolicy.REPLACE,
             work
         )
