@@ -1,22 +1,36 @@
-name: Build Qalqon APK
+name: QALQON Ultimate V3 CI
 
 on:
   push:
     branches: [ main ]
     paths:
+      - 'android/**'
       - '.build_payload/**'
+      - '.github/workflows/bootstrap-build.yml'
+      - 'V3_UPGRADE_REPORT.md'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Apply staged V3 source upgrade
+        id: patch
+        shell: bash
+        run: |
+          if [ -f .build_payload/QALQON_V3_PATCH.zip ]; then
+            unzip -o .build_payload/QALQON_V3_PATCH.zip -d .
+            echo "applied=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -29,16 +43,46 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build installable debug APK
+      - name: Unit tests
+        run: gradle -p android --no-daemon testDebugUnitTest
+
+      - name: Android lint
+        run: gradle -p android --no-daemon lintDebug
+
+      - name: Build debug APK
         run: gradle -p android --no-daemon assembleDebug
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Qalqon.apk
+      - name: Persist verified V3 sources
+        if: steps.patch.outputs.applied == 'true'
+        shell: bash
+        run: |
+          rm -f .build_payload/QALQON_V3_PATCH.zip
+          git config user.name "QALQON CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Apply QALQON Ultimate V3 verified upgrade"
+            git push origin HEAD:main
+          fi
 
-      - name: Upload Qalqon APK
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk QALQON-ULTIMATE-V3.apk
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Qalqon-APK
-          path: Qalqon.apk
+          name: QALQON-ULTIMATE-V3-APK
+          path: QALQON-ULTIMATE-V3.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: QALQON-V3-test-reports
+          path: |
+            android/app/build/reports/tests/
+            android/app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
           retention-days: 14
