@@ -1,0 +1,5 @@
+QALQON GitHub build
+
+This repository includes .github/workflows/build-apk.yml.
+Every push to main builds an installable debug APK and publishes it as the Qalqon-APK artifact.
+The resulting APK file is named Qalqon.apk.

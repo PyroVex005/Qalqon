@@ -1,0 +1,10 @@
+Qalqon build status
+===================
+App display name: Qalqon
+Android project: android/
+Expected debug APK after successful build: dist/Qalqon-debug.apk
+Build command: scripts/build-apk.sh (Linux/macOS) or BUILD_APK.bat (Windows)
+
+This archive was prepared in an environment that did not contain Android SDK/Gradle
+and did not permit downloading build dependencies, so the APK binary could not be
+compiled in that environment. No fake APK binary was created.

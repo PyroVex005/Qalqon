@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/qalqon_navy" />
+    <foreground android:drawable="@drawable/qalqon_icon_foreground" />
+    <monochrome android:drawable="@drawable/ic_qalqon_monochrome" />
+</adaptive-icon>

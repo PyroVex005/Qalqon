@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: qalqon
+      POSTGRES_USER: qalqon
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - qalqon_pg:/var/lib/postgresql/data
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://qalqon:change-me@db:5432/qalqon
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+volumes:
+  qalqon_pg:

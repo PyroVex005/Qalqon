@@ -1,0 +1,4 @@
+QALQON official icon SHA-256 (packaged 1024x1024 PNG):
+4aa7aa28906c58bea141d2920fc501e158edbc22b76d987e43d3efc89aef5410
+
+Source: the icon generated in this ChatGPT conversation.
