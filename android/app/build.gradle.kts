@@ -12,8 +12,8 @@ android {
         applicationId = "uz.qalqon.security"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "3.0.0"
 
         val backendUrl = providers.gradleProperty("QALQON_BACKEND_URL").orElse("").get()
         buildConfigField("String", "QALQON_BACKEND_URL", "\"${backendUrl.replace("\"", "\\\"")}\"")
