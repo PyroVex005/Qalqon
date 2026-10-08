@@ -163,6 +163,7 @@ private enum class Tab(val label: Int, val icon: ImageVector) {
 
 @Composable
 private fun AppDetail(app: AppSecurityInfo, onBack: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
@@ -230,6 +231,21 @@ private fun AppDetail(app: AppSecurityInfo, onBack: () -> Unit) {
                         stringResource(R.string.not_proof_malware),
                         style = MaterialTheme.typography.bodySmall
                     )
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            val intent = android.content.Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.parse("package:" + app.packageName)
+                            )
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Settings, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Android ruxsat sozlamalari")
+                    }
                 }
             }
         }
