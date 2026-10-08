@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import uz.qalqon.security.worker.ProtectionWorker
@@ -13,6 +14,10 @@ class PackageChangeReceiver: BroadcastReceiver() {
         if (intent.action == Intent.ACTION_PACKAGE_REMOVED && intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
         val packageName = intent.data?.schemeSpecificPart ?: return
         val work = OneTimeWorkRequestBuilder<ProtectionWorker>().setInputData(Data.Builder().putString("package", packageName).build()).build()
-        WorkManager.getInstance(context).enqueue(work)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "qalqon_package_" + packageName,
+            ExistingWorkPolicy.REPLACE,
+            work
+        )
     }
 }
