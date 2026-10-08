@@ -1,74 +1,47 @@
 package uz.qalqon.security.data
 
 import java.io.File
-import java.util.zip.ZipException
 import java.util.zip.ZipFile
 
 object ApkArchiveGuard {
-    const val MAX_INPUT_BYTES = 500L * 1024 * 1024
-    private const val MAX_UNCOMPRESSED_BYTES = 1536L * 1024 * 1024
-    private const val MAX_SINGLE_ENTRY_BYTES = 300L * 1024 * 1024
-    private const val MAX_ENTRIES = 25_000
-    private const val MAX_SUSPICIOUS_RATIO = 250.0
+    const val MAX_APK_BYTES = 512L * 1024 * 1024
+    const val MAX_ZIP_ENTRIES = 20_000
+    const val MAX_TOTAL_UNCOMPRESSED_BYTES = 2L * 1024 * 1024 * 1024
+    const val MAX_COMPRESSION_RATIO = 250L
 
-    data class Inspection(
-        val valid: Boolean,
-        val entryCount: Int,
-        val uncompressedBytes: Long,
-        val hasManifest: Boolean,
-        val dexFiles: Int,
-        val fatalFindings: List<String>,
-        val warnings: List<String>
-    )
+    data class Result(val valid: Boolean, val message: String? = null)
 
-    fun inspect(file: File): Inspection {
-        val fatal = mutableListOf<String>()
-        val warnings = mutableListOf<String>()
-        var entries = 0
-        var uncompressed = 0L
-        var hasManifest = false
-        var dexFiles = 0
-        try {
+    fun validate(file: File): Result {
+        if (!file.isFile) return Result(false, "APK fayli topilmadi")
+        if (file.length() > MAX_APK_BYTES) return Result(false, "APK hajmi 512 MB limitdan katta")
+        return runCatching {
             ZipFile(file).use { zip ->
+                var entries = 0
+                var totalUncompressed = 0L
+                var hasManifest = false
                 val enumeration = zip.entries()
                 while (enumeration.hasMoreElements()) {
                     val entry = enumeration.nextElement()
                     entries++
-                    if (entries > MAX_ENTRIES) {
-                        fatal += "Arxivda juda ko‘p fayl bor"
-                        break
-                    }
-                    val name = entry.name.replace('\\', '/')
-                    if (name == "AndroidManifest.xml") hasManifest = true
-                    if (name.matches(Regex("classes(\\d*)?\\.dex"))) dexFiles++
-                    if (name.startsWith("/") || name.split('/').any { it == ".." }) {
-                        fatal += "Arxiv ichida xavfsiz bo‘lmagan yo‘l topildi: $name"
-                    }
-                    if (!entry.isDirectory) {
-                        val size = entry.size
-                        val compressed = entry.compressedSize
-                        if (size > 0) {
-                            uncompressed += size
-                            if (size > MAX_SINGLE_ENTRY_BYTES) fatal += "Arxivdagi bitta fayl juda katta"
-                            if (uncompressed > MAX_UNCOMPRESSED_BYTES) fatal += "Arxiv ochilganda hajm limiti oshadi"
-                            if (compressed > 0 && size >= 10L * 1024 * 1024) {
-                                val ratio = size.toDouble() / compressed.toDouble()
-                                if (ratio > MAX_SUSPICIOUS_RATIO) fatal += "G‘ayritabiiy siqish nisbati aniqlandi"
-                            }
-                        } else if (size < 0) {
-                            warnings += "Ba’zi arxiv elementlarining ochilgan hajmi oldindan noma’lum"
+                    if (entries > MAX_ZIP_ENTRIES) return Result(false, "APK ichida haddan tashqari ko‘p ZIP yozuvlari bor")
+                    if (entry.name == "AndroidManifest.xml") hasManifest = true
+                    if (entry.isDirectory) continue
+
+                    val unpacked = entry.size
+                    if (unpacked > 0) {
+                        if (unpacked > MAX_TOTAL_UNCOMPRESSED_BYTES - totalUncompressed) {
+                            return Result(false, "APK ochilganda ruxsat etilgan hajmdan oshadi")
                         }
+                        totalUncompressed += unpacked
                     }
-                    if (fatal.isNotEmpty()) break
+
+                    val compressed = entry.compressedSize
+                    if (unpacked > 16L * 1024 * 1024 && compressed > 0 && unpacked / compressed > MAX_COMPRESSION_RATIO) {
+                        return Result(false, "APK ichida xavfli darajada yuqori siqish nisbati aniqlandi")
+                    }
                 }
+                if (!hasManifest) Result(false, "AndroidManifest.xml topilmadi") else Result(true)
             }
-        } catch (_: ZipException) {
-            fatal += "Fayl yaroqli ZIP/APK arxivi emas"
-        } catch (e: Exception) {
-            fatal += "Arxivni xavfsiz tekshirib bo‘lmadi: ${e.javaClass.simpleName}"
-        }
-        if (!hasManifest) fatal += "AndroidManifest.xml topilmadi"
-        if (dexFiles == 0) warnings += "DEX kodi topilmadi; bu APK resurs-only bo‘lishi mumkin"
-        return Inspection(fatal.isEmpty(), entries, uncompressed, hasManifest, dexFiles, fatal.distinct(), warnings.distinct())
+        }.getOrElse { Result(false, "APK ZIP arxivini tekshirib bo‘lmadi: " + (it.message ?: "noma’lum xato")) }
     }
 }
