@@ -21,8 +21,12 @@ fun Drawable.toImageBitmap(): ImageBitmap {
 
 @Composable fun rememberAppIcon(packageName: String): ImageBitmap? {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val state = produceState<ImageBitmap?>(null, packageName) {
-        value = withContext(Dispatchers.IO) { runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull() }
+    val state = remember(packageName) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(packageName) {
+        val icon = withContext(Dispatchers.IO) {
+            runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull()
+        }
+        state.value = icon
     }
     return state.value
 }
