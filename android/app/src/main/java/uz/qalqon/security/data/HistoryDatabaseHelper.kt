@@ -18,6 +18,8 @@ class HistoryDatabaseHelper(context: Context): SQLiteOpenHelper(context, "qalqon
         })
     }
 
+    fun clear() { writableDatabase.delete("scan_history", null, null) }
+
     fun list(limit: Int = 30): List<ScanSnapshot> {
         val out = mutableListOf<ScanSnapshot>()
         readableDatabase.query("scan_history", null, null, null, null, null, "timestamp DESC", limit.toString()).use { c ->
