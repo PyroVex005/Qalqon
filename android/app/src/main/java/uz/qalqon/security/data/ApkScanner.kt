@@ -6,9 +6,10 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import uz.qalqon.security.model.ApkScanResult
+import uz.qalqon.security.model.AssessmentStatus
 import uz.qalqon.security.model.RiskCategory
 import uz.qalqon.security.model.RiskReason
-import uz.qalqon.security.model.Severity
+import uz.qalqon.security.model.RiskSeverity
 import uz.qalqon.security.security.RiskEngine
 import java.io.File
 import java.io.FileOutputStream
@@ -18,16 +19,9 @@ class ApkScanner(private val context: Context) {
     fun scan(uri: Uri): ApkScanResult {
         val resolver = context.contentResolver
         var displayName = "selected.apk"
-        var declaredSize: Long? = null
-        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
-            if (c.moveToFirst()) {
-                val nameIndex = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                val sizeIndex = c.getColumnIndex(OpenableColumns.SIZE)
-                if (nameIndex >= 0) displayName = c.getString(nameIndex) ?: displayName
-                if (sizeIndex >= 0 && !c.isNull(sizeIndex)) declaredSize = c.getLong(sizeIndex)
-            }
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) displayName = c.getString(0) ?: displayName
         }
-        require(declaredSize == null || declaredSize!! <= ApkArchiveGuard.MAX_INPUT_BYTES) { "APK hajmi xavfsizlik limitidan katta (500 MB)" }
 
         val temp = File.createTempFile("qalqon_", ".apk", context.cacheDir)
         val digest = MessageDigest.getInstance("SHA-256")
@@ -41,38 +35,17 @@ class ApkScanner(private val context: Context) {
                         val n = input.read(buffer)
                         if (n <= 0) break
                         size += n
-                        require(size <= ApkArchiveGuard.MAX_INPUT_BYTES) { "APK hajmi xavfsizlik limitidan katta (500 MB)" }
+                        require(size <= ApkArchiveGuard.MAX_APK_BYTES) { "APK hajmi 512 MB limitdan katta" }
                         digest.update(buffer, 0, n)
                         out.write(buffer, 0, n)
                     }
                 }
             }
+
             val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
-            val inspection = ApkArchiveGuard.inspect(temp)
-            if (!inspection.valid) {
-                val reasons = inspection.fatalFindings.mapIndexed { index, message ->
-                    RiskReason("APK arxiv muammosi", message, 20, "APK_ARCHIVE_FATAL_${index + 1}", Severity.HIGH, 98)
-                } + inspection.warnings.mapIndexed { index, message ->
-                    RiskReason("APK arxiv ogohlantirishi", message, 3, "APK_ARCHIVE_WARN_${index + 1}", Severity.INFORMATIONAL, 90)
-                }
-                return ApkScanResult(
-                    displayName = displayName,
-                    packageName = null,
-                    versionName = null,
-                    targetSdk = null,
-                    sizeBytes = size,
-                    sha256 = sha256,
-                    certificateSha256 = null,
-                    requestedPermissions = emptyList(),
-                    localRiskScore = 85,
-                    riskScore = 85,
-                    category = RiskCategory.HIGH,
-                    reasons = reasons,
-                    analysisComplete = false,
-                    archiveValid = false,
-                    archiveEntries = inspection.entryCount,
-                    uncompressedBytes = inspection.uncompressedBytes
-                )
+            val archive = ApkArchiveGuard.validate(temp)
+            if (!archive.valid) {
+                return incompleteResult(displayName, size, sha256, archive.message ?: "APK arxivi yaroqsiz")
             }
 
             val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_SIGNING_CERTIFICATES
@@ -80,15 +53,7 @@ class ApkScanner(private val context: Context) {
                 context.packageManager.getPackageArchiveInfo(temp.absolutePath, PackageManager.PackageInfoFlags.of(flags.toLong()))
             } else {
                 @Suppress("DEPRECATION") context.packageManager.getPackageArchiveInfo(temp.absolutePath, flags)
-            }
-            if (info == null) {
-                val reasons = listOf(
-                    RiskReason("APK metadata o‘qilmadi", "Android PackageManager ushbu arxivni installable APK sifatida tahlil qila olmadi", 35, "APK_METADATA_UNREADABLE", Severity.HIGH, 95)
-                ) + inspection.warnings.mapIndexed { index, message ->
-                    RiskReason("APK arxiv ogohlantirishi", message, 3, "APK_ARCHIVE_WARN_${index + 1}", Severity.INFORMATIONAL, 90)
-                }
-                return ApkScanResult(displayName, null, null, null, size, sha256, null, emptyList(), 70, 70, RiskCategory.SUSPICIOUS, reasons, analysisComplete = false, archiveValid = true, archiveEntries = inspection.entryCount, uncompressedBytes = inspection.uncompressedBytes)
-            }
+            } ?: return incompleteResult(displayName, size, sha256, "Android APK metadata ma’lumotini o‘qiy olmadi")
 
             val requested = info.requestedPermissions?.toList().orEmpty()
             val target = info.applicationInfo?.targetSdkVersion
@@ -97,9 +62,12 @@ class ApkScanner(private val context: Context) {
                     MessageDigest.getInstance("SHA-256").digest(it).joinToString("") { b -> "%02X".format(b) }
                 }
             }.getOrNull()
+
             val eval = RiskEngine.evaluateApk(requested, target, cert)
-            val archiveReasons = inspection.warnings.mapIndexed { index, message ->
-                RiskReason("APK arxiv ogohlantirishi", message, 3, "APK_ARCHIVE_WARN_${index + 1}", Severity.INFORMATIONAL, 90)
+            val status = when {
+                eval.totalRisk >= 60 -> AssessmentStatus.SUSPICIOUS
+                cert.isNullOrBlank() -> AssessmentStatus.UNKNOWN
+                else -> AssessmentStatus.NO_KNOWN_THREAT_DETECTED
             }
             return ApkScanResult(
                 displayName = displayName,
@@ -113,14 +81,42 @@ class ApkScanner(private val context: Context) {
                 localRiskScore = eval.totalRisk,
                 riskScore = eval.totalRisk,
                 category = eval.category,
-                reasons = (eval.reasons + archiveReasons).sortedByDescending { it.weight },
-                analysisComplete = true,
+                reasons = eval.reasons,
                 archiveValid = true,
-                archiveEntries = inspection.entryCount,
-                uncompressedBytes = inspection.uncompressedBytes
+                assessmentStatus = status
             )
         } finally {
             temp.delete()
         }
     }
+
+    private fun incompleteResult(displayName: String, size: Long, sha256: String, message: String): ApkScanResult {
+        return ApkScanResult(
+            displayName = displayName,
+            packageName = null,
+            versionName = null,
+            targetSdk = null,
+            sizeBytes = size,
+            sha256 = sha256,
+            certificateSha256 = null,
+            requestedPermissions = emptyList(),
+            localRiskScore = 0,
+            riskScore = 0,
+            category = RiskCategory.UNKNOWN,
+            reasons = listOf(
+                RiskReason(
+                    title = "Skan to‘liq yakunlanmadi",
+                    detail = message,
+                    weight = 0,
+                    ruleId = "APK_PARSE_INCOMPLETE",
+                    severity = RiskSeverity.INFORMATIONAL,
+                    confidence = 100,
+                    recommendedAction = "Fayl manbasini tekshiring va ishonchli nusxa bilan qayta urinib ko‘ring."
+                )
+            ),
+            archiveValid = false,
+            assessmentStatus = AssessmentStatus.SCAN_INCOMPLETE
+        )
+    }
+
 }
