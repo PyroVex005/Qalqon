@@ -6,6 +6,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import uz.qalqon.security.model.AppSecurityInfo
+import uz.qalqon.security.model.AssessmentStatus
 import uz.qalqon.security.security.RiskEngine
 import java.security.MessageDigest
 
@@ -67,7 +68,12 @@ class AppScanner(private val context: Context) {
             riskScore = evaluation.totalRisk,
             permissionRiskScore = evaluation.permissionRisk,
             category = evaluation.category,
-            reasons = evaluation.reasons
+            reasons = evaluation.reasons,
+            assessmentStatus = when {
+                evaluation.totalRisk >= 60 -> AssessmentStatus.SUSPICIOUS
+                cert.isNullOrBlank() -> AssessmentStatus.UNKNOWN
+                else -> AssessmentStatus.NO_KNOWN_THREAT_DETECTED
+            }
         )
     }
 
