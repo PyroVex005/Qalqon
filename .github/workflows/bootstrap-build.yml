@@ -1,0 +1,57 @@
+name: Bootstrap and Build Qalqon APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.build_payload/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract Qalqon source
+        run: |
+          unzip -o .build_payload/Qalqon_Source_Min2.zip -d .
+          rm -f .github/workflows/build-apk.yml
+
+      - name: Commit expanded source
+        run: |
+          git config user.name "Qalqon Build Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Add Qalqon Android source [skip ci]" || true
+          git push
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build installable debug APK
+        run: gradle -p android --no-daemon assembleDebug
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Qalqon.apk
+
+      - name: Upload Qalqon APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Qalqon-APK
+          path: Qalqon.apk
+          if-no-files-found: error
+          retention-days: 14
