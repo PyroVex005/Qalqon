@@ -163,7 +163,140 @@ private enum class Tab(val label: Int, val icon: ImageVector) {
 
 @Composable private fun AppDetail(app:AppSecurityInfo,onBack:()->Unit){LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{TextButton(onClick=onBack){Icon(Icons.Default.ArrowBack,null);Text(stringResource(R.string.back))}};item{Row(verticalAlignment=Alignment.CenterVertically){rememberAppIcon(app.packageName)?.let{Image(it,null,Modifier.size(72.dp).clip(RoundedCornerShape(18.dp)));Spacer(Modifier.width(14.dp))};Column{Text(app.label,fontSize=25.sp,fontWeight=FontWeight.Bold);Text(app.packageName);RiskBadge(app.riskScore,app.category)}}};item{GlassCard{Column{Text(stringResource(R.string.details),fontWeight=FontWeight.Bold);Text("${stringResource(R.string.version)}: ${app.versionName}");Text("${stringResource(R.string.target_sdk)}: ${app.targetSdk}");Text("${stringResource(R.string.source)}: ${app.installerPackage ?: stringResource(R.string.unknown)}");Text("${stringResource(R.string.certificate)}: ${app.certificateSha256 ?: stringResource(R.string.unknown)}")}}};item{GlassCard{Column{Text(stringResource(R.string.permissions),fontWeight=FontWeight.Bold);Text("${app.grantedPermissions.size} / ${app.requestedPermissions.size}");app.reasons.forEach{Text("• ${it.title}: ${it.detail}",Modifier.padding(top=5.dp))};if(app.reasons.isEmpty())Text(stringResource(R.string.no_known_risk));Spacer(Modifier.height(8.dp));Text(stringResource(R.string.not_proof_malware),style=MaterialTheme.typography.bodySmall)}}}}
 
-@Composable private fun ScanScreen(vm:MainViewModel){var mode by remember{mutableIntStateOf(0)}; val apk by vm.apkResult.collectAsStateWithLifecycle();val url by vm.urlResult.collectAsStateWithLifecycle();var link by remember{mutableStateOf("")};val launcher=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::scanApk)};LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{Text(stringResource(R.string.scan),fontSize=28.sp,fontWeight=FontWeight.Bold)};item{SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()){listOf(R.string.full_scan,R.string.apk_scan,R.string.link_scan).forEachIndexed{i,id->SegmentedButton(selected=mode==i,onClick={mode=i},shape=SegmentedButtonDefaults.itemShape(i,3)){Text(stringResource(id))}}}};when(mode){0->item{GlassCard{Column{Text(stringResource(R.string.full_scan),fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));Text(stringResource(R.string.real_data_note));Spacer(Modifier.height(10.dp));Button(onClick=vm::refreshAll){Text(stringResource(R.string.scan_now))}}}};1->{item{Button(onClick={launcher.launch(arrayOf("application/vnd.android.package-archive","application/octet-stream"))},Modifier.fillMaxWidth()){Text(stringResource(R.string.choose_apk))}};apk?.let{r->item{ResultCard(r.displayName,r.riskScore,r.category,listOf("${stringResource(R.string.package_name)}: ${r.packageName ?: "—"}","${stringResource(R.string.sha256)}: ${r.sha256}","${stringResource(R.string.cloud_reputation)}: ${r.reputation}")+r.reasons.map{"${it.title}: ${it.detail}"})}}};else->{item{OutlinedTextField(link,{link=it},Modifier.fillMaxWidth(),label={Text(stringResource(R.string.paste_link))},singleLine=true)};item{Button(onClick={vm.scanUrl(link)},Modifier.fillMaxWidth()){Text(stringResource(R.string.check_link))}};url?.let{r->item{ResultCard(r.host,r.riskScore,r.category,listOf("URL: ${r.normalizedUrl}","${stringResource(R.string.cloud_reputation)}: ${r.reputation}")+r.reasons.map{"${it.title}: ${it.detail}"})}}}}}}
+@Composable
+private fun ScanScreen(vm: MainViewModel) {
+    var mode by remember { mutableIntStateOf(0) }
+    val apk by vm.apkResult.collectAsStateWithLifecycle()
+    val url by vm.urlResult.collectAsStateWithLifecycle()
+    var link by remember { mutableStateOf("") }
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let(vm::scanApk)
+    }
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                stringResource(R.string.scan),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        item {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                listOf(
+                    R.string.full_scan,
+                    R.string.apk_scan,
+                    R.string.link_scan
+                ).forEachIndexed { i, id ->
+                    SegmentedButton(
+                        selected = mode == i,
+                        onClick = { mode = i },
+                        shape = SegmentedButtonDefaults.itemShape(i, 3)
+                    ) {
+                        Text(stringResource(id))
+                    }
+                }
+            }
+        }
+
+        when (mode) {
+            0 -> {
+                item {
+                    GlassCard {
+                        Column {
+                            Text(
+                                stringResource(R.string.full_scan),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(stringResource(R.string.real_data_note))
+                            Spacer(Modifier.height(10.dp))
+                            Button(onClick = vm::refreshAll) {
+                                Text(stringResource(R.string.scan_now))
+                            }
+                        }
+                    }
+                }
+            }
+
+            1 -> {
+                item {
+                    Button(
+                        onClick = {
+                            launcher.launch(
+                                arrayOf(
+                                    "application/vnd.android.package-archive",
+                                    "application/octet-stream"
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.choose_apk))
+                    }
+                }
+
+                apk?.let { r ->
+                    item {
+                        ResultCard(
+                            r.displayName,
+                            r.riskScore,
+                            r.category,
+                            listOf(
+                                "${stringResource(R.string.package_name)}: ${r.packageName ?: "—"}",
+                                "${stringResource(R.string.sha256)}: ${r.sha256}",
+                                "${stringResource(R.string.cloud_reputation)}: ${r.reputation}"
+                            ) + r.reasons.map { "${it.title}: ${it.detail}" }
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                item {
+                    OutlinedTextField(
+                        value = link,
+                        onValueChange = { link = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.paste_link)) },
+                        singleLine = true
+                    )
+                }
+
+                item {
+                    Button(
+                        onClick = { vm.scanUrl(link) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.check_link))
+                    }
+                }
+
+                url?.let { r ->
+                    item {
+                        ResultCard(
+                            r.host,
+                            r.riskScore,
+                            r.category,
+                            listOf(
+                                "URL: ${r.normalizedUrl}",
+                                "${stringResource(R.string.cloud_reputation)}: ${r.reputation}"
+                            ) + r.reasons.map { "${it.title}: ${it.detail}" }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable private fun ResultCard(title:String,score:Int,cat:RiskCategory,lines:List<String>){GlassCard{Column{Text(title,fontWeight=FontWeight.Bold);Spacer(Modifier.height(6.dp));RiskBadge(score,cat);Spacer(Modifier.height(10.dp));lines.forEach{Text(it,style=MaterialTheme.typography.bodySmall,modifier=Modifier.padding(vertical=2.dp))};if(lines.size<=2)Text(stringResource(R.string.no_known_risk))}}}
 
