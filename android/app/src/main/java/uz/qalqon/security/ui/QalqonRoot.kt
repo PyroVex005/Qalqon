@@ -389,7 +389,39 @@ private fun ScanScreen(vm: MainViewModel) {
 
 @Composable private fun ResultCard(title:String,score:Int,cat:RiskCategory,lines:List<String>){GlassCard{Column{Text(title,fontWeight=FontWeight.Bold);Spacer(Modifier.height(6.dp));RiskBadge(score,cat);Spacer(Modifier.height(10.dp));lines.forEach{Text(it,style=MaterialTheme.typography.bodySmall,modifier=Modifier.padding(vertical=2.dp))};if(lines.size<=2)Text(stringResource(R.string.no_known_risk))}}}
 
-@Composable private fun Reports(vm:MainViewModel){val history by vm.history.collectAsStateWithLifecycle();LaunchedEffect(Unit){vm.loadHistory()};LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{Text(stringResource(R.string.reports),fontSize=28.sp,fontWeight=FontWeight.Bold)};if(history.isEmpty())item{Text(stringResource(R.string.history_empty))}else items(history,key={it.id}){h->GlassCard{Column{Text(DateFormat.getDateTimeInstance().format(Date(h.timestamp)),fontWeight=FontWeight.Bold);Text("${stringResource(R.string.overall_security)}: ${h.overallScore}%");Text("${stringResource(R.string.installed_apps)}: ${h.totalApps}");Text("${stringResource(R.string.suspicious)}: ${h.suspiciousApps}   ${stringResource(R.string.high_risk)}: ${h.highRiskApps}")}}}}}
+@Composable
+private fun Reports(vm: MainViewModel) {
+    val history by vm.history.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { vm.loadHistory() }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.reports), fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                if (history.isNotEmpty()) {
+                    TextButton(onClick = vm::clearHistory) { Text("Tarixni tozalash") }
+                }
+            }
+        }
+        if (history.isEmpty()) {
+            item { Text(stringResource(R.string.history_empty)) }
+        } else {
+            items(history, key = { it.id }) { h ->
+                GlassCard {
+                    Column {
+                        Text(DateFormat.getDateTimeInstance().format(Date(h.timestamp)), fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.overall_security) + ": " + h.overallScore + "%")
+                        Text(stringResource(R.string.installed_apps) + ": " + h.totalApps)
+                        Text(stringResource(R.string.suspicious) + ": " + h.suspiciousApps + "   " + stringResource(R.string.high_risk) + ": " + h.highRiskApps)
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun SettingsScreen(vm: MainViewModel) {
