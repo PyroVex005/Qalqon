@@ -2,7 +2,26 @@ package uz.qalqon.security.model
 
 enum class RiskCategory { SAFE, LOW, ATTENTION, SUSPICIOUS, HIGH, KNOWN_MALICIOUS, UNKNOWN }
 
-data class RiskReason(val title: String, val detail: String, val weight: Int)
+enum class RiskSeverity { CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL }
+
+enum class AssessmentStatus {
+    CONFIRMED_KNOWN_THREAT,
+    SUSPICIOUS,
+    NO_KNOWN_THREAT_DETECTED,
+    UNKNOWN,
+    SCAN_INCOMPLETE
+}
+
+data class RiskReason(
+    val title: String,
+    val detail: String,
+    val weight: Int,
+    val ruleId: String = "legacy",
+    val severity: RiskSeverity = RiskSeverity.INFORMATIONAL,
+    val confidence: Int = 50,
+    val recommendedAction: String = "",
+    val evaluatedAt: Long = System.currentTimeMillis()
+)
 
 data class AppSecurityInfo(
     val label: String,
@@ -20,7 +39,8 @@ data class AppSecurityInfo(
     val riskScore: Int,
     val permissionRiskScore: Int,
     val category: RiskCategory,
-    val reasons: List<RiskReason>
+    val reasons: List<RiskReason>,
+    val assessmentStatus: AssessmentStatus = AssessmentStatus.UNKNOWN
 )
 
 data class DeviceSecurityInfo(
@@ -68,7 +88,9 @@ data class ApkScanResult(
     val riskScore: Int,
     val category: RiskCategory,
     val reasons: List<RiskReason>,
-    val reputation: String = "unknown"
+    val reputation: String = "unknown",
+    val archiveValid: Boolean = true,
+    val assessmentStatus: AssessmentStatus = AssessmentStatus.UNKNOWN
 )
 
 data class UrlScanResult(
@@ -77,7 +99,8 @@ data class UrlScanResult(
     val riskScore: Int,
     val category: RiskCategory,
     val reasons: List<RiskReason>,
-    val reputation: String = "unknown"
+    val reputation: String = "unknown",
+    val assessmentStatus: AssessmentStatus = AssessmentStatus.UNKNOWN
 )
 
 data class ScanSnapshot(
