@@ -1,8 +1,10 @@
 name: QALQON Ultimate V3 CI
 
 on:
+  pull_request:
+    branches: [ main ]
   push:
-    branches: [ v3-upgrade ]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
