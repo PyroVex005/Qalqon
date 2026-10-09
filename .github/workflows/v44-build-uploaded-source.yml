@@ -28,6 +28,39 @@ jobs:
           base64 -d /tmp/v44.b64 > /tmp/v44.tar.gz
           tar -xzf /tmp/v44.tar.gz -C .
 
+      - name: Apply targeted V4.4 Android fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          ui = Path("android/app/src/main/java/uz/qalqon/security/ui/UiUtils.kt")
+          text = ui.read_text()
+          old = """    val state = produceState<ImageBitmap?>(null, packageName) {
+        value = withContext(Dispatchers.IO) { runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull() }
+    }"""
+          new = """    val state = produceState<ImageBitmap?>(initialValue = null, key1 = packageName) {
+        val icon = withContext(Dispatchers.IO) {
+            runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull()
+        }
+        value = icon
+    }"""
+          if old not in text:
+              raise SystemExit("UiUtils.kt expected block not found")
+          ui.write_text(text.replace(old, new))
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+          text = text.replace(
+              '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+              '<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    xmlns:tools="http://schemas.android.com/tools">'
+          )
+          text = text.replace(
+              '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />',
+              '<uses-permission\n        android:name="android.permission.QUERY_ALL_PACKAGES"\n        tools:ignore="QueryAllPackagesPermission" />'
+          )
+          manifest.write_text(text)
+          PY
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
