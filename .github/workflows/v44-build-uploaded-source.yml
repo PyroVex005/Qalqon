@@ -21,6 +21,9 @@ jobs:
 
       - name: Restore uploaded V4.4 source overlay
         run: |
+          # Remove stale V3 Kotlin/tests/backend so CI validates the uploaded V4.4 source,
+          # while keeping existing binary Android resources such as the official icon.
+          rm -rf android/app/src/main/java android/app/src/test android/app/src/androidTest backend
           cat .build_payload/v44/p0.txt .build_payload/v44/p1.txt .build_payload/v44/p2.txt .build_payload/v44/p3.txt > /tmp/v44.b64
           base64 -d /tmp/v44.b64 > /tmp/v44.tar.gz
           tar -xzf /tmp/v44.tar.gz -C .
