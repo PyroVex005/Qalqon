@@ -21,8 +21,6 @@ jobs:
 
       - name: Restore uploaded V4.4 source overlay
         run: |
-          # Remove stale V3 Kotlin/tests/backend so CI validates the uploaded V4.4 source,
-          # while keeping existing binary Android resources such as the official icon.
           rm -rf android/app/src/main/java android/app/src/test android/app/src/androidTest backend
           cat .build_payload/v44/p0.txt .build_payload/v44/p1.txt .build_payload/v44/p2.txt .build_payload/v44/p3.txt > /tmp/v44.b64
           base64 -d /tmp/v44.b64 > /tmp/v44.tar.gz
@@ -30,36 +28,8 @@ jobs:
 
       - name: Apply targeted V4.4 Android fixes
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          ui = Path("android/app/src/main/java/uz/qalqon/security/ui/UiUtils.kt")
-          text = ui.read_text()
-          old = """    val state = produceState<ImageBitmap?>(null, packageName) {
-        value = withContext(Dispatchers.IO) { runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull() }
-    }"""
-          new = """    val state = produceState<ImageBitmap?>(initialValue = null, key1 = packageName) {
-        val icon = withContext(Dispatchers.IO) {
-            runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull()
-        }
-        value = icon
-    }"""
-          if old not in text:
-              raise SystemExit("UiUtils.kt expected block not found")
-          ui.write_text(text.replace(old, new))
-
-          manifest = Path("android/app/src/main/AndroidManifest.xml")
-          text = manifest.read_text()
-          text = text.replace(
-              '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
-              '<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n    xmlns:tools="http://schemas.android.com/tools">'
-          )
-          text = text.replace(
-              '<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />',
-              '<uses-permission\n        android:name="android.permission.QUERY_ALL_PACKAGES"\n        tools:ignore="QueryAllPackagesPermission" />'
-          )
-          manifest.write_text(text)
-          PY
+          python -c 'from pathlib import Path; p=Path("android/app/src/main/java/uz/qalqon/security/ui/UiUtils.kt"); s=p.read_text(); old="        value = withContext(Dispatchers.IO) { runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull() }"; new="        val icon = withContext(Dispatchers.IO) { runCatching { context.packageManager.getApplicationIcon(packageName).toImageBitmap() }.getOrNull() }\\n        value = icon"; assert old in s, "UiUtils expected block missing"; p.write_text(s.replace(old,new))'
+          python -c 'from pathlib import Path; p=Path("android/app/src/main/AndroidManifest.xml"); s=p.read_text(); s=s.replace("<manifest xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">","<manifest xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\" xmlns:tools=\\\"http://schemas.android.com/tools\\\">"); s=s.replace("<uses-permission android:name=\\\"android.permission.QUERY_ALL_PACKAGES\\\" />","<uses-permission android:name=\\\"android.permission.QUERY_ALL_PACKAGES\\\" tools:ignore=\\\"QueryAllPackagesPermission\\\" />"); p.write_text(s)'
 
       - name: Set up Python
         uses: actions/setup-python@v5
